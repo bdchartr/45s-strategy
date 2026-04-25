@@ -319,6 +319,94 @@ If you ever care: read the splitmix64 paper (Steele/Lea/Flood, 2014)
 and the ChaCha papers above. For day-to-day work this is a "pick one
 constant, never think about it again" decision.
 
+## Ablation — finding which lever does the work
+
+### The concept
+
+When a strategy bundle (call it L2) beats a baseline (L1) by 4%, *how
+much of that 4% comes from each component you added?* The naive answer
+("they all contribute") is almost always wrong. Ablation tells you the
+real story.
+
+The recipe: for each component you added, build a hybrid that has *only
+that component* layered on the baseline. Run each hybrid vs. the
+baseline. The win-rate delta is that component's marginal contribution.
+
+L2 added two things on top of L1: strength-weighted trump declaration
+and partner-aware trick play. Naive expectation: each adds ~2%, summing
+to ~4%. Reality from `scripts/ablate_l2.py`:
+
+- L2-trump-only: +0.75% (essentially noise)
+- L2-partner-only: +3.5% (the lever)
+- L2-full: +4.16% (roughly additive)
+
+Without ablation, the temptation was to "polish trump declaration." The
+right move was to build *more partner-aware behavior* — leading to
+"play minimum to win," which jumped L2 from 54% → 65%.
+
+### The concept that matters here
+
+**Ablation is the cheapest way to falsify your story about why your
+agent works.** Run it before iterating on any single component. If you
+guess wrong about which component is load-bearing, you'll spend hours
+tuning the wrong knob.
+
+This generalizes well past strategy bots: the same trick lights up
+which feature in a neural net is doing the work, which preprocessing
+step matters, which heuristic in a large rule-based system actually
+fires.
+
+### How to learn more
+
+Ablation is a *technique*, not a tool — it's mostly the discipline of
+running the variants. For neural-net ablation specifically:
+
+- **"Building Machine Learning Powered Applications"** (Ameisen) has a
+  chapter on ablation as a debugging method.
+- **Karpathy's "A Recipe for Training Neural Networks"** mentions
+  ablation as part of the iteration loop. Worth re-reading once a year.
+  http://karpathy.github.io/2019/04/25/recipe/
+
+## Domain quirks — encoding 45s correctly
+
+### The concept
+
+Card games have rules that don't follow conventional ordering. In
+45s off-suit, the **Ace of a red suit is the LOWEST card** — KD > QD
+> JD > 10D > … > 2D > AD. (Yes, the *Ace* of Diamonds ranks below the
+*2* of Diamonds in off-suit play.) Black off-suit is also non-standard:
+the Ace ranks between the Jack and the 10 — so KC > QC > JC > AC > 10C.
+
+These rules are easy to get wrong twice: once when porting from PHP and
+again when writing tests for your own bot. We hit both.
+
+### The concept that matters here
+
+**Trust the engine, not your intuition, on rank.** When testing a
+trick-resolution helper, *probe the actual `card_strength` values*
+rather than asserting from memory. We discovered the L2 docstring's
+example was wrong (claimed L2 would pick Clubs over Diamonds for
+`[5C, KC, 2D, 3D, 4D]`, but under trump=D those low diamonds become
+*trumps* worth ~100 each, totalling more than 5C+KC). We also wrote a
+test asserting "AD beats KD because both follow lead" — completely
+wrong.
+
+The fix wasn't to change the engine. The fix was to write a regression
+test that *encodes the actual rule*: `tests/test_l2.py::test_beating_cards_red_ace_is_low_in_off_suit`
+asserts AD cannot beat 2D when Diamonds is led — locking in the
+domain quirk so future bots don't quietly mis-handle it.
+
+### How to learn more
+
+Whenever you encode a domain rule into code, add a regression test that
+fails if the encoding silently flips. The cost is one test; the value
+is "future me can't quietly break this."
+
+For 45s rules specifically: the production PHP repo's `game_rules.md`
+is the source of truth, and `src/ranker.rs` in this repo is the
+authoritative implementation. Probe `card_strength(card, trump)` before
+trusting any claim about "what beats what."
+
 ## Where to go next
 
 By the end of Stage 1 you can:
@@ -328,6 +416,7 @@ By the end of Stage 1 you can:
 - Run a tournament between any two strategies via `run_tournament`.
 - Reason about why a self-play tournament should converge to ~50/50
   and what asymmetries in the harness would push it elsewhere.
+- Ablate a multi-component strategy to find which lever does what work.
 
 The next stage (MCTS) introduces the algorithmic content that none of
 this prepares you for. We'll add:

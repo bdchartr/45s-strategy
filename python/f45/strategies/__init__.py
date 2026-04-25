@@ -8,5 +8,6 @@ to act when it's that seat's turn.
 
 from f45.strategies.base import Strategy
 from f45.strategies.l1_novice import L1Novice
+from f45.strategies.l2_basic import L2Basic
 
-__all__ = ["Strategy", "L1Novice"]
+__all__ = ["Strategy", "L1Novice", "L2Basic"]

@@ -190,6 +190,20 @@ impl PyGameState {
             .collect()
     }
 
+    /// Seat currently winning the in-progress trick, or None if no card has
+    /// been played yet (you're leading). Uses the same trick-resolution logic
+    /// the engine itself uses to award a completed trick.
+    fn current_winning_seat(&self) -> Option<Seat> {
+        let plays = self.inner.current_trick();
+        if plays.is_empty() {
+            return None;
+        }
+        let trump = self.inner.trump()?;
+        let cards: Vec<Card> = plays.iter().map(|(_, c)| *c).collect();
+        let idx = crate::rules::winning_index(&cards, trump);
+        Some(plays[idx].0)
+    }
+
     /// Completed tricks as `[(leader_seat, winner_seat, [(seat, card_code), ...]), ...]`.
     fn completed_tricks(&self) -> Vec<(Seat, Seat, Vec<(Seat, String)>)> {
         self.inner

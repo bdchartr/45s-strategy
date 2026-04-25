@@ -2,17 +2,24 @@
 
 ## Current focus
 
-**Stage 1 — rule-based baselines.** L1 + tournament harness shipped; L2/L3 next.
+**Stage 1 — rule-based baselines.** L1 + L2 verified. L3 next.
 
 - [x] Rule-helper PyO3 surface (`card_strength`, `is_trump`, `is_top_trump`, `num_players`).
 - [x] `Strategy` Protocol (`python/f45/strategies/base.py`).
 - [x] `L1Novice` faithful port of PHP's `AlgorithmicMoveProvider` (`python/f45/strategies/l1_novice.py`).
 - [x] Tournament harness with seed derivation (`python/f45/tournament.py`); 5000-game L1-vs-L1 self-play converges to 50.3/49.7, ~38k hands/sec including Python loop.
-- [x] Python pytest suite (10 tests, all green) + `scripts/l1_self_play.py` smoke driver.
-- [ ] **L2_Basic**: + partner-winning detection → dump low when partner is winning the trick; smarter trump selection (suit length × strength, not just length).
-- [ ] **L3_Counter**: + tracks trump/aces played; avoids leading high cards when the trump suit is exhausted vs. when it isn't.
-- [ ] Verify ladder: L2 beats L1 ≥55%, L3 beats L2 ≥55% over 10k games.
+- [x] **L2_Basic** (`python/f45/strategies/l2_basic.py`): partner-winning detection + "play minimum to win" + strength-weighted trump declaration. Pooled win rate vs L1: **65.79%** over 20k games (`scripts/ladder.py 10000`). Avg score 118 vs 88; sets 0.15 vs 0.42.
+- [x] Ablation done (`scripts/ablate_l2.py`): partner-aware play is the dominant lever (+3.5%); strength-weighted trump alone is +0.75%; "play minimum to win" added the rest (~+11.5% on top of partner-only).
+- [x] Python pytest suite (20 tests, all green) including `tests/test_l2.py` covering `_beating_cards` and the 45s "red ace is low in off-suit" rule.
+- [ ] **L3_Counter**: + tracks trump/aces played; avoids leading high cards into a void; smarter leads (don't lead high to a partner-known void).
+- [ ] Verify L3 beats L2 ≥55% over 10k games.
 - [ ] Parallel harness via `multiprocessing.Pool` (only if profiling shows we need it — single-thread is already 38k hands/sec).
+
+### Surprises from L2
+
+- **L2's docstring example was wrong.** Claimed L2 picks Clubs over Diamonds for `[5C, KC, 2D, 3D, 4D]`. In reality, the three diamonds become low *trumps* under trump=D (~100 each, summing to ~300) and outweigh 5C+KC's ~312 in trump=C. L2 picks Diamonds for that hand — same as L1. Replaced with `[5C, JC, 2D, 3D, 4D]` where Clubs cleanly wins (5C+JC are two of the three top trumps; ~78 point gap).
+- **Red off-suit aces are low.** AD = strength 1 (lowest in off-suit Diamonds); KD = 13 (highest). The 45s rule was easy to forget when writing tests; one test asserted "AD beats KD because both follow lead" which is false. Locked the rule in via `tests/test_l2.py::test_beating_cards_red_ace_is_low_in_off_suit`.
+- **The big lever wasn't the headline change.** L2's docstring originally headlined partner-awareness and strength-weighted trump. Ablation showed strength-weighted trump barely registers; "play minimum to win" (added second) is what cleared the 55% gate.
 
 ### Stage 0 checkpoints
 
@@ -67,13 +74,14 @@ Goal: deterministic, fast, rules-accurate engine callable from Python.
 
 Goal: 3 hand-crafted strategy tiers + tournament harness. These are permanent evaluation opponents for all later stages.
 
-- [ ] `Strategy` trait/protocol defined in Python (Rust-side optional)
-- [ ] `L1_Novice`: highest legal card, threshold-based bidding (port from `AlgorithmicMoveProvider.php`)
-- [ ] `L2_Basic`: + partner-winning detection → dump low; smarter trump selection
+- [x] `Strategy` Protocol defined in Python
+- [x] `L1_Novice`: highest legal card, threshold-based bidding (port from `AlgorithmicMoveProvider.php`)
+- [x] `L2_Basic`: + partner-winning detection + "play minimum to win" + strength-weighted trump declaration. Pooled 65.8% vs L1 over 20k games.
 - [ ] `L3_Counter`: + tracks trump/aces played; avoids wasting high cards
-- [ ] Tournament harness: round-robin N games, output win-rate matrix + score differentials
-- [ ] Parallel harness via `multiprocessing.Pool`
-- [ ] Verify ladder: L2 beats L1 ≥55%, L3 beats L2 ≥55% over 10k games
+- [x] Tournament harness: N games, win-rate matrix + score differentials (`python/f45/tournament.py`)
+- [ ] Parallel harness via `multiprocessing.Pool` (deferred — single-thread is 38k hands/sec)
+- [x] Verify L2 ≥55% vs L1
+- [ ] Verify L3 ≥55% vs L2 over 10k games
 
 ## Stage 2 — MCTS baseline
 

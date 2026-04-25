@@ -1,0 +1,29 @@
+[package]
+name = "f45-engine"
+version = "0.1.0"
+edition = "2021"
+description = "45s card game engine, Rust core with Python bindings"
+license = "MIT"
+
+[lib]
+name = "_engine"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# `extension-module` is enabled via the same-named feature below and turned on
+# by maturin builds (see pyproject.toml). Rust-only `cargo test` builds do NOT
+# enable it, which lets the integration-test binaries link against libpython
+# instead of deferring all Python symbols to runtime.
+pyo3 = { version = "0.28" }
+rand = { version = "0.8", default-features = false }
+rand_chacha = { version = "0.3", default-features = false }
+
+[features]
+extension-module = ["pyo3/extension-module"]
+
+[dev-dependencies]
+proptest = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

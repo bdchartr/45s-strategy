@@ -2,7 +2,17 @@
 
 ## Current focus
 
-**Stage 0 complete.** All checkpoints C1–C5 done. Next up: **Stage 1** (rule-based baselines).
+**Stage 1 — rule-based baselines.** L1 + tournament harness shipped; L2/L3 next.
+
+- [x] Rule-helper PyO3 surface (`card_strength`, `is_trump`, `is_top_trump`, `num_players`).
+- [x] `Strategy` Protocol (`python/f45/strategies/base.py`).
+- [x] `L1Novice` faithful port of PHP's `AlgorithmicMoveProvider` (`python/f45/strategies/l1_novice.py`).
+- [x] Tournament harness with seed derivation (`python/f45/tournament.py`); 5000-game L1-vs-L1 self-play converges to 50.3/49.7, ~38k hands/sec including Python loop.
+- [x] Python pytest suite (10 tests, all green) + `scripts/l1_self_play.py` smoke driver.
+- [ ] **L2_Basic**: + partner-winning detection → dump low when partner is winning the trick; smarter trump selection (suit length × strength, not just length).
+- [ ] **L3_Counter**: + tracks trump/aces played; avoids leading high cards when the trump suit is exhausted vs. when it isn't.
+- [ ] Verify ladder: L2 beats L1 ≥55%, L3 beats L2 ≥55% over 10k games.
+- [ ] Parallel harness via `multiprocessing.Pool` (only if profiling shows we need it — single-thread is already 38k hands/sec).
 
 ### Stage 0 checkpoints
 

@@ -11,6 +11,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::wrap_pyfunction;
 
 use crate::cards::{Card, Suit};
 use crate::error::EngineError;
@@ -109,6 +110,10 @@ impl PyGameState {
 
     fn dealer(&self) -> Seat {
         self.inner.dealer()
+    }
+
+    fn num_players(&self) -> u8 {
+        self.inner.num_players()
     }
 
     fn hand(&self, seat: Seat) -> PyResult<Vec<String>> {
@@ -262,8 +267,45 @@ impl PyGameState {
     }
 }
 
+// --- Module-level rule helpers ---
+//
+// Strategies that score or rank cards need access to the same ranking primitives
+// the engine uses. Rather than re-implement the bower hierarchy and red/black
+// asymmetry in Python (and risk drift), expose the Rust functions directly.
+
+/// Strength score for `card` given `trump` (a single-letter suit code, e.g. "S").
+/// Higher = stronger. The numeric values are not stable as a contract — only
+/// the ordering is. See `ranker.rs` for the encoding ranges.
+#[pyfunction]
+fn card_strength(card: &str, trump: &str) -> PyResult<i32> {
+    let c = parse_card(card)?;
+    let t = parse_suit(trump)?;
+    Ok(crate::ranker::strength(c, t))
+}
+
+/// Is `card` a trump given `trump` suit? Ace of Hearts is always trump.
+#[pyfunction]
+fn is_trump(card: &str, trump: &str) -> PyResult<bool> {
+    let c = parse_card(card)?;
+    let t = parse_suit(trump)?;
+    Ok(crate::ranker::is_trump(c, t))
+}
+
+/// Is `card` one of the three top trumps (5-of-trump, J-of-trump, AH)?
+/// These are the cards exempt from the must-follow-trump rule when a *lower*
+/// trump is led.
+#[pyfunction]
+fn is_top_trump(card: &str, trump: &str) -> PyResult<bool> {
+    let c = parse_card(card)?;
+    let t = parse_suit(trump)?;
+    Ok(crate::ranker::is_top_trump(c, t))
+}
+
 /// Register the PyGameState class on the Python module. Called from lib.rs.
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyGameState>()?;
+    m.add_function(wrap_pyfunction!(card_strength, m)?)?;
+    m.add_function(wrap_pyfunction!(is_trump, m)?)?;
+    m.add_function(wrap_pyfunction!(is_top_trump, m)?)?;
     Ok(())
 }
